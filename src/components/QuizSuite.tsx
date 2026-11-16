@@ -1,5 +1,5 @@
-import React from 'react';
-import { CheckCircle2, RotateCcw, XCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { CheckCircle2, RotateCcw, XCircle, Lightbulb, Shuffle, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { QuizProgressMap, QuizQuestion } from '../types/lab';
 import { labAudio } from '../utils/audio';
 
@@ -18,6 +18,31 @@ export const QuizSuite: React.FC<QuizSuiteProps> = ({
   onAnswer,
   onResetQuiz,
 }) => {
+  const [practiceMode, setPracticeMode] = useState(false);
+  const [activeHintIndex, setActiveHintIndex] = useState<Record<number, number>>({});
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+
+  // Progressive hints toggle
+  const handleRevealHint = (qIdx: number) => {
+    labAudio.playClick();
+    setActiveHintIndex((prev) => ({
+      ...prev,
+      [qIdx]: (prev[qIdx] || 0) + 1,
+    }));
+  };
+
+  // Randomized questions & options
+  const displayQuestions = useMemo(() => {
+    if (shuffleSeed === 0) return questions;
+    // Shuffle copy
+    const copied = [...questions];
+    for (let i = copied.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copied[i], copied[j]] = [copied[j], copied[i]];
+    }
+    return copied;
+  }, [questions, shuffleSeed]);
+
   const expProgress = progress[expId] ?? {};
   const answeredCount = Object.keys(expProgress).length;
   const correctCount = Object.values(expProgress).filter((a) => a.isCorrect).length;
@@ -28,31 +53,70 @@ export const QuizSuite: React.FC<QuizSuiteProps> = ({
     <section className="glass-panel rounded-md p-6 sm:p-8 flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
-          <h2 className="font-display text-xl sm:text-2xl font-semibold text-[#dee2f6]">
-            05. Mastery Quiz Suite
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-xl sm:text-2xl font-semibold text-[#dee2f6]">
+              05. Mastery Quiz & Knowledge Check
+            </h2>
+            {practiceMode && (
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                Practice Mode Active
+              </span>
+            )}
+          </div>
           <p className="text-sm text-[#bfc7d2] mt-1">
-            6 targeted conceptual and mathematical problems with immediate Web Audio feedback.
+            {practiceMode
+              ? 'Leaderboard-free self-paced learning: unlimited retries and progressive conceptual hints.'
+              : 'Targeted conceptual and quantitative evaluation with Web Audio feedback.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Practice Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              setPracticeMode((p) => !p);
+              labAudio.playClick();
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold cursor-pointer transition ${
+              practiceMode
+                ? 'bg-emerald-600 text-white'
+                : 'bg-white/5 border border-white/10 text-[#bfc7d2] hover:text-white'
+            }`}
+          >
+            <HeartHandshake className="w-3.5 h-3.5" />
+            {practiceMode ? 'Practice Mode' : 'Graded Mode'}
+          </button>
+
+          {/* Shuffle Questions */}
+          <button
+            type="button"
+            onClick={() => {
+              setShuffleSeed((s) => s + 1);
+              labAudio.playClick();
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-white/5 border border-white/10 text-[#bfc7d2] hover:text-white cursor-pointer"
+          >
+            <Shuffle className="w-3.5 h-3.5" /> Shuffle
+          </button>
+
           <div
             id="suiteScoreBadge"
             className="quiz-score-badge px-3.5 py-1.5 rounded bg-[#090e1c] border border-white/15 font-mono text-xs tabular-nums text-[#dee2f6]"
           >
             Score: {correctCount} / {questions.length} · {pct}%
           </div>
+
           <button
             type="button"
             onClick={() => {
               labAudio.playClick();
+              setActiveHintIndex({});
               onResetQuiz(expId);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-white/5 border border-white/15 text-[#bfc7d2] hover:text-white hover:border-white/30 transition cursor-pointer whitespace-nowrap"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset Quiz
+            <RotateCcw className="w-3.5 h-3.5" /> Reset
           </button>
         </div>
       </div>
@@ -66,11 +130,19 @@ export const QuizSuite: React.FC<QuizSuiteProps> = ({
         />
       </div>
 
-      {/* 6 Questions Grid */}
+      {/* Questions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {questions.map((q, qIdx) => {
+        {displayQuestions.map((q, qIdx) => {
           const entry = expProgress[qIdx];
           const isAnswered = entry !== undefined;
+          const hintStage = activeHintIndex[qIdx] || 0;
+
+          // Default progressive hints
+          const defaultHints = [
+            `Consider which variable is conserved or held constant according to the governing physical law.`,
+            `Look closely at the formula relationships: determine whether variables are directly or inversely proportional.`,
+          ];
+          const hintList = q.hints || defaultHints;
 
           return (
             <div
@@ -81,24 +153,50 @@ export const QuizSuite: React.FC<QuizSuiteProps> = ({
                 <span className="font-mono text-xs text-[var(--lab-accent)]">
                   Question {qIdx + 1} of {questions.length}
                 </span>
-                {isAnswered && (
-                  <span
-                    className={`inline-flex items-center gap-1 font-mono text-xs ${
-                      entry.isCorrect ? 'text-emerald-400' : 'text-rose-400'
-                    }`}
-                  >
-                    {entry.isCorrect ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Correct
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-3.5 h-3.5" /> Review
-                      </>
-                    )}
-                  </span>
-                )}
+
+                <div className="flex items-center gap-2">
+                  {!isAnswered && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevealHint(qIdx)}
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-400 hover:text-amber-300 cursor-pointer"
+                    >
+                      <Lightbulb className="w-3 h-3" />
+                      {hintStage === 0 ? 'Need a Hint?' : `Hint (${hintStage}/2)`}
+                    </button>
+                  )}
+
+                  {isAnswered && (
+                    <span
+                      className={`inline-flex items-center gap-1 font-mono text-xs ${
+                        entry.isCorrect ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {entry.isCorrect ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Correct
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3.5 h-3.5" /> Review
+                        </>
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Progressive Hint Reveal Banner */}
+              {hintStage > 0 && !isAnswered && (
+                <div className="p-3 rounded bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs flex flex-col gap-1.5 font-mono">
+                  <span className="font-bold flex items-center gap-1 text-[11px]">
+                    <Lightbulb className="w-3 h-3" /> Progressive Clue {hintStage}:
+                  </span>
+                  <p className="leading-relaxed">
+                    {hintStage === 1 ? hintList[0] : hintList[1]}
+                  </p>
+                </div>
+              )}
 
               <p className="text-sm font-medium text-[#dee2f6] leading-relaxed">
                 {q.prompt}
@@ -129,6 +227,7 @@ export const QuizSuite: React.FC<QuizSuiteProps> = ({
                     <button
                       key={oIdx}
                       type="button"
+                      disabled={isAnswered && !practiceMode}
                       onClick={() => {
                         const isCorrect = oIdx === q.correctIndex;
                         if (isCorrect) {

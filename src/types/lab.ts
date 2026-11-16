@@ -6,6 +6,8 @@ export type LabId =
   | 'mechanical'
   | 'programming';
 
+export type DifficultyLevel = 'Beginner' | 'Intermediate' | 'Advanced';
+
 export interface LabSuite {
   id: LabId;
   name: string;
@@ -31,6 +33,11 @@ export interface ExperimentMeta {
   summary: string;
   filePath: string;
   concepts: string[];
+  difficulty: DifficultyLevel;
+  precautions: string[];
+  commonErrors: string[];
+  derivationOverview: string;
+  hints: string[];
 }
 
 export interface QuizQuestion {
@@ -39,6 +46,7 @@ export interface QuizQuestion {
   options: [string, string, string, string];
   correctIndex: 0 | 1 | 2 | 3;
   explanation: string;
+  hints?: [string, string];
 }
 
 export interface FlowStep {
@@ -52,6 +60,7 @@ export interface TheoryEquation {
   name: string;
   expression: string;
   notes: string;
+  derivation?: string;
 }
 
 export interface ExperimentPedagogy {
@@ -80,3 +89,33 @@ export type QuizProgressMap = Record<
   string,
   Record<number, { selectedIndex: number; isCorrect: boolean }>
 >;
+
+export interface StudentProfile {
+  name: string;
+  theme: 'dark' | 'light';
+  practiceMode: boolean;
+  completedExperiments: string[];
+  totalTrialsLogged: number;
+  totalTimeMinutes: number;
+  badges: string[];
+  notes: Record<string, string>;
+}
+
+export interface GlossaryTerm {
+  id: string;
+  term: string;
+  discipline: LabId | 'general';
+  definition: string;
+  formula?: string;
+  unit?: string;
+}
+
+export interface SavedExperimentSession {
+  id: string;
+  name: string;
+  expId: string;
+  labId: LabId;
+  timestamp: string;
+  notes: string;
+  logs: ObservationEntry[];
+}
